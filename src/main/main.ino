@@ -1,3 +1,8 @@
+
+/*
+ * NOTAS:
+ * -Revisar siguiente link (mas fiable) para publicar por medio de mqtt: https://help.ubidots.com/en/articles/748067-connect-an-esp32-devkitc-to-ubidots-over-mqtt
+ */
 //=======================================================================
 //                               Lib
 //=======================================================================
@@ -13,11 +18,6 @@
 #include <ESP8266WiFi.h>
 #include "UbidotsESPMQTT.h"
 
-//=======================================================================
-//                               Tickers
-//=======================================================================
-//Ticker blinker_one;
-//Ticker blinker_two;
 //=======================================================================
 //                               GPIO
 //=======================================================================
@@ -35,8 +35,8 @@ const uint8_t GPIO_S3   = 10;
 //=======================================================================
 //                               Definitions
 //=======================================================================
-#define EVENT_TIME_INA219 100
-#define EVENT_TIME_OLED 120
+#define EVENT_TIME_Max30102 100
+#define EVENT_TIME_LM75 120
 #define EVENT_TIME 1000
 
 #define TRUE 1
@@ -59,7 +59,12 @@ uint16_t time_s = 0;
 uint16_t time_m = 0;
 uint16_t time_h = 0;
 
-uint16_t temp_time_m = 0;
+uint8_t publish_flag = FALSE;
+uint8_t publish_time = 10;
+
+/** Sensors Variables*/
+uint16_t oxymeter_var = 0;
+uint16_t temperature_var = 0;
 
 //=======================================================================
 //                               Callback
@@ -126,7 +131,7 @@ void loop() {
   uint32_t currentTime = millis(); //ms
 
   /*
-     Blynk run
+     Ubidots run
   */
   /** If connection is lost, then reconnect*/
   if(!client.connected())
@@ -137,11 +142,20 @@ void loop() {
   /*
      Run task in a certain time
   */
-  if (currentTime - previous_time_OLED >= EVENT_TIME_OLED)
+  if (currentTime - previous_time_Max30102 >= EVENT_TIME_Max30102)
   {
-    task_OLED_id();
+    task_Max30102_id();
 
-    previous_time_OLED = currentTime;
+    previous_time_Max30102 = currentTime;
+  }
+  /*
+     Run task in a certain time
+  */
+  if (currentTime - previous_time_LM75 >= EVENT_TIME_LM75)
+  {
+    task_LM75_id();
+
+    previous_time_LM75 = currentTime;
   }
   /*
      Run task in a certain time
@@ -152,17 +166,16 @@ void loop() {
 
     previous_time_TIME = currentTime;
   }
-  /*
-     Run task in a certain time
-  */
-  if (currentTime - previous_time_INA219 >= EVENT_TIME_INA219)
-  {
-    task_INA219_id();
 
-    previous_time_INA219 = currentTime;
-  }
   /*
      Run task to publish info report
   */
-
+  if(TRUE == publish_flag)
+  {
+    client.add("oxymeter", oxymeter_var);
+    client.add("temperature", temperature_var);
+    /** API LABEL*/
+    client.ubidotsPublish("iot_hospital");
+    client.loop();
+  }
 }

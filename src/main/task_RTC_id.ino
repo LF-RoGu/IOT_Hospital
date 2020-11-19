@@ -5,7 +5,6 @@ void task_RTC_id ()
   {
     time_m++;
     time_s = 0;
-    
   }
   if(time_m > 59)
   {
@@ -18,5 +17,10 @@ void task_RTC_id ()
       time_m = 0;
       time_h = 0;
     }
-  }   
+  } 
+  /** Condition flag*/
+  if( (time_s%publish_time) == FALSE )
+  {
+    publish_flag = TRUE;
+  }  
 }
