@@ -8,16 +8,19 @@
 //=======================================================================
 #include <SPI.h>
 #include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#include <Adafruit_INA219.h>
-#include <Ticker.h>  //Ticker Library
 /*
    Ubidots
 */
 #include <ESP8266WiFi.h>
 #include "UbidotsESPMQTT.h"
-
+/*
+  MAX30105 LIBRARY
+*/
+#include "MAX30105.h"
+/** SPO2*/
+#include "spo2_algorithm.h"
+/** HearRate*/
+#include "heartRate.h"
 //=======================================================================
 //                               GPIO
 //=======================================================================
@@ -35,7 +38,7 @@ const uint8_t GPIO_S3   = 10;
 //=======================================================================
 //                               Definitions
 //=======================================================================
-#define EVENT_TIME_Max30102 100
+#define EVENT_TIME_Max30105 100
 #define EVENT_TIME_LM75 120
 #define EVENT_TIME 1000
 
@@ -45,13 +48,17 @@ const uint8_t GPIO_S3   = 10;
 #define TOKEN "BBFF-YXileBcbucSl944RMPB6MJwddlGdrL" // Your Ubidots TOKEN
 #define WIFINAME "LEAL" //Your SSID
 #define WIFIPASS "luis2020" // Your Wifi Pass
-
+//=======================================================================
+//                               Objects
+//=======================================================================
+/** Ubidots*/
 Ubidots client(TOKEN);
-
+/** MAX30105*/
+MAX30105 particleSensor;
 //=======================================================================
 //                               Variables
 //=======================================================================
-uint32_t previous_time_Max30102 = 0;
+uint32_t previous_time_Max30105 = 0;
 uint32_t previous_time_LM75 = 0;
 uint32_t previous_time_TIME = 0;
 
@@ -66,6 +73,43 @@ uint8_t publish_time = 10;
 uint16_t oxymeter_var = 0;
 uint16_t temperature_var = 0;
 
+/** MAX30105 variables*/
+  /** SPO2*/
+uint16_t irBuffer[100] = {0}; //infrared LED sensor data
+uint16_t redBuffer[100] = {0};  //red LED sensor data
+int32_t bufferLength = 0; //data length
+int32_t spo2 = 0; //SPO2 value
+int8_t validSPO2 = 0; //indicator to show if the SPO2 calculation is valid
+int32_t heartRate = 0; //heart rate value
+int8_t validHeartRate = 0; //indicator to show if the heart rate calculation is valid
+  /** HeartRate*/
+const int8_t RATE_SIZE = 4; //Increase this for more averaging. 4 is good.
+int8_t rates[RATE_SIZE] = {0}; //Array of heart rates
+int8_t rateSpot = 0;
+int64_t lastBeat = 0; //Time at which the last beat occurred
+/** Important values*/
+float beatsPerMinute = 0;
+int32_t beatAvg = 0;
+//=======================================================================
+//                               Prototype
+//=======================================================================
+/*
+
+*/
+void task_Max30105_id (void);
+/*
+ 
+ */
+void funct_HeartBeat (void);
+/*
+
+*/
+void task_LM75_id (void);
+/*
+
+*/
+void task_RTC_id (void);
+
 //=======================================================================
 //                               Callback
 //=======================================================================
@@ -79,22 +123,6 @@ void callback(char* topic, byte* payload, unsigned int length)
   }
   Serial.println();
 }
-//=======================================================================
-//                               Prototype
-//=======================================================================
-/*
-
-*/
-void task_Max30102_id (void);
-/*
-
-*/
-void task_LM75_id (void);
-/*
-
-*/
-void task_RTC_id (void);
-
 //=======================================================================
 //                               Setup
 //=======================================================================
@@ -118,9 +146,12 @@ void setup() {
   /** Callback for debug options*/
   client.begin(callback);
   /*
-     Max30102 SetUp
+     Max30105 SetUp
   */
-
+  /** Init sensor MAX30105*/
+  particleSensor.begin(Wire, I2C_SPEED_FAST);
+  particleSensor.setup();
+  particleSensor.setPulseAmplitudeRed(0x0A);
   /*
      LM75 SetUp
   */
@@ -142,11 +173,11 @@ void loop() {
   /*
      Run task in a certain time
   */
-  if (currentTime - previous_time_Max30102 >= EVENT_TIME_Max30102)
+  if (currentTime - previous_time_Max30105 >= EVENT_TIME_Max30105)
   {
-    task_Max30102_id();
+    task_Max30105_id();
 
-    previous_time_Max30102 = currentTime;
+    previous_time_Max30105 = currentTime;
   }
   /*
      Run task in a certain time

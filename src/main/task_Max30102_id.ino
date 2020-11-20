@@ -1,4 +1,4 @@
-void task_MAX30102_id ()
+void task_Max30105_id ()
 {
-
+  funct_HeartBeat();
 }
