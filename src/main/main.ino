@@ -1,8 +1,8 @@
 
 /*
- * NOTAS:
- * -Revisar siguiente link (mas fiable) para publicar por medio de mqtt: https://help.ubidots.com/en/articles/748067-connect-an-esp32-devkitc-to-ubidots-over-mqtt
- */
+   NOTAS:
+   -Revisar siguiente link (mas fiable) para publicar por medio de mqtt: https://help.ubidots.com/en/articles/748067-connect-an-esp32-devkitc-to-ubidots-over-mqtt
+*/
 //=======================================================================
 //                               Lib
 //=======================================================================
@@ -21,6 +21,8 @@
 #include "spo2_algorithm.h"
 /** HearRate*/
 #include "heartRate.h"
+/** LM75*/
+#include "lm75.h"
 //=======================================================================
 //                               GPIO
 //=======================================================================
@@ -55,6 +57,8 @@ const uint8_t GPIO_S3   = 10;
 Ubidots client(TOKEN);
 /** MAX30105*/
 MAX30105 particleSensor;
+/** LM75*/
+TempI2C_LM75 termo = TempI2C_LM75(0x48, TempI2C_LM75::nine_bits);
 //=======================================================================
 //                               Variables
 //=======================================================================
@@ -74,7 +78,7 @@ uint16_t oxymeter_var = 0;
 uint16_t temperature_var = 0;
 
 /** MAX30105 variables*/
-  /** SPO2*/
+/** SPO2*/
 uint16_t irBuffer[100] = {0}; //infrared LED sensor data
 uint16_t redBuffer[100] = {0};  //red LED sensor data
 int32_t bufferLength = 0; //data length
@@ -82,7 +86,7 @@ int32_t spo2 = 0; //SPO2 value
 int8_t validSPO2 = 0; //indicator to show if the SPO2 calculation is valid
 int32_t heartRate = 0; //heart rate value
 int8_t validHeartRate = 0; //indicator to show if the heart rate calculation is valid
-  /** HeartRate*/
+/** HeartRate*/
 const int8_t RATE_SIZE = 4; //Increase this for more averaging. 4 is good.
 int8_t rates[RATE_SIZE] = {0}; //Array of heart rates
 int8_t rateSpot = 0;
@@ -98,8 +102,8 @@ int32_t beatAvg = 0;
 */
 void task_Max30105_id (void);
 /*
- 
- */
+
+*/
 void funct_HeartBeat (void);
 /*
 
@@ -113,12 +117,12 @@ void task_RTC_id (void);
 //=======================================================================
 //                               Callback
 //=======================================================================
-void callback(char* topic, byte* payload, unsigned int length) 
+void callback(char* topic, byte* payload, unsigned int length)
 {
   Serial.print("Message arrived [");
   Serial.print(topic);
   Serial.print("] ");
-  for (int i=0;i<length;i++) {
+  for (int i = 0; i < length; i++) {
     Serial.print((char)payload[i]);
   }
   Serial.println();
@@ -165,7 +169,7 @@ void loop() {
      Ubidots run
   */
   /** If connection is lost, then reconnect*/
-  if(!client.connected())
+  if (!client.connected())
   {
     client.reconnect();
   }
@@ -185,7 +189,9 @@ void loop() {
   if (currentTime - previous_time_LM75 >= EVENT_TIME_LM75)
   {
     task_LM75_id();
-
+    temperature_var = termo.getTemp();
+    Serial.print(temperature_var);
+    Serial.println(" oC");
     previous_time_LM75 = currentTime;
   }
   /*
@@ -201,7 +207,7 @@ void loop() {
   /*
      Run task to publish info report
   */
-  if(TRUE == publish_flag)
+  if (TRUE == publish_flag)
   {
     client.add("oxymeter", oxymeter_var);
     client.add("temperature", temperature_var);
