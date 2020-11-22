@@ -16,7 +16,7 @@
 /*
   MAX30105 LIBRARY
 */
-#include "MAX30105.h"
+#include "MAX30100_PulseOximeter.h"
 /** SPO2*/
 #include "spo2_algorithm.h"
 /** HearRate*/
