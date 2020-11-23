@@ -34,9 +34,9 @@ void task_Max30105_id ()
 
 
   Serial.print(" ");
-  perCent = irValue / irOffset;
+  spo2 = irValue / irOffset;
   Serial.print("Oxygen=");
-  Serial.print(perCent);
+  Serial.print(spo2);
   Serial.print("%");
 
   float temperatureF = particleSensor.readTemperatureF(); //Because I am a bad global citizen

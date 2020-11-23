@@ -39,15 +39,14 @@ const uint8_t GPIO_S3   = 10;
 //                               Definitions
 //=======================================================================
 #define EVENT_TIME_Max30105 100
-#define EVENT_TIME_LM75 120
-#define EVENT_TIME 1000
+#define EVENT_TIME_PUBLISH 500
 
 #define TRUE 1
 #define FALSE 0
 
-#define TOKEN "BBFF-YXileBcbucSl944RMPB6MJwddlGdrL" // Your Ubidots TOKEN
-#define WIFINAME "LEAL" //Your SSID
-#define WIFIPASS "luis2020" // Your Wifi Pass
+#define TOKEN "BBFF-YXileBcbucSl944RMPB6MJwddlGdrL"     // Your Ubidots TOKEN
+#define WIFINAME "role"   // Your SSID
+#define WIFIPASS "role1966"  // Your Wifi Pass
 //=======================================================================
 //                               Objects
 //=======================================================================
@@ -66,15 +65,7 @@ DeviceAddress insideThermometer;
 //                               Variables
 //=======================================================================
 uint32_t previous_time_Max30105 = 0;
-uint32_t previous_time_LM75 = 0;
-uint32_t previous_time_TIME = 0;
-
-uint16_t time_s = 0;
-uint16_t time_m = 0;
-uint16_t time_h = 0;
-
-uint8_t publish_flag = FALSE;
-uint8_t publish_time = 10;
+uint32_t previous_time_PUBLISH = 0;
 
 /** Sensors Variables*/
 uint16_t oxymeter_var = 0;
@@ -90,7 +81,7 @@ int32_t beatAvg;
 int64_t samplesTaken = 0; //Counter for calculating the Hz or read rate
 int64_t unblockedValue; //Average IR at power up
 int64_t startTime; //Used to calculate measurement rate
-int32_t perCent; 
+int32_t spo2; 
 int32_t degOffset = 0.5; //calibrated Farenheit degrees
 int32_t irOffset = 1800;
 int32_t count;
@@ -99,6 +90,19 @@ int32_t noFinger;
 int32_t avgIr;
 int32_t avgTemp;
 
+//=======================================================================
+//                               Callback
+//=======================================================================
+void callback(char* topic, byte* payload, unsigned int length) 
+{
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+}
 //=======================================================================
 //                               Prototype
 //=======================================================================
@@ -109,11 +113,7 @@ void task_Max30105_id (void);
 /*
 
 */
-void funct_HeartBeat (void);
-/*
-
-*/
-void task_LM75_id (void);
+void task_publishMQTT_id (void);
 
 //=======================================================================
 //                               Setup
@@ -149,8 +149,40 @@ void setup() {
   /*
      LM75 SetUp
   */
+  /*
+     Ubidots
+  */
+  /** Sets the broker properly for the business account*/
+  client.ubidotsSetBroker("things.ubidots.com");
+  /** Enables callback for debug*/ 
+  client.setDebug(true);
+  client.wifiConnection(WIFINAME, WIFIPASS);
+  /** Set ptr to callback*/
+  client.begin(callback);
 }
 
 void loop() {
-  task_Max30105_id();
+  /** keep track of time for publish*/
+  uint32_t currentTime = millis(); //ms
+  
+  if (!client.connected()) 
+  {
+    client.reconnect();
+  }
+  /** Publish data to server*/
+  task_publishMQTT_id();
+  /** Read sensor values*/
+  if (currentTime - previous_time_Max30105 >= EVENT_TIME_Max30105)
+  {
+    task_Max30105_id();
+
+    previous_time_Max30105 = currentTime;
+  }
+  /** Publish sensor values*/
+  if (currentTime - previous_time_PUBLISH >= EVENT_TIME_PUBLISH)
+  {
+    task_publishMQTT_id();
+
+    previous_time_PUBLISH = currentTime;
+  }
 }
