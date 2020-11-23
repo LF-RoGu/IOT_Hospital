@@ -16,13 +16,11 @@
 /*
   MAX30105 LIBRARY
 */
-#include "MAX30100_PulseOximeter.h"
-/** SPO2*/
-#include "spo2_algorithm.h"
-/** HearRate*/
+#include "MAX30105.h"
 #include "heartRate.h"
-/** LM75*/
-#include "lm75.h"
+/** DS18B20*/
+#include <OneWire.h>
+#include <DallasTemperature.h>
 //=======================================================================
 //                               GPIO
 //=======================================================================
@@ -57,8 +55,13 @@ const uint8_t GPIO_S3   = 10;
 Ubidots client(TOKEN);
 /** MAX30105*/
 MAX30105 particleSensor;
-/** LM75*/
-TempI2C_LM75 termo = TempI2C_LM75(0x48, TempI2C_LM75::nine_bits);
+/** DS18B20*/
+/** Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)*/
+OneWire oneWire(GPIO_D4);
+/** Pass our oneWire reference to Dallas Temperature. */
+DallasTemperature sensors(&oneWire);
+/** arrays to hold device address*/
+DeviceAddress insideThermometer;
 //=======================================================================
 //                               Variables
 //=======================================================================
@@ -78,22 +81,24 @@ uint16_t oxymeter_var = 0;
 uint16_t temperature_var = 0;
 
 /** MAX30105 variables*/
-/** SPO2*/
-uint16_t irBuffer[100] = {0}; //infrared LED sensor data
-uint16_t redBuffer[100] = {0};  //red LED sensor data
-int32_t bufferLength = 0; //data length
-int32_t spo2 = 0; //SPO2 value
-int8_t validSPO2 = 0; //indicator to show if the SPO2 calculation is valid
-int32_t heartRate = 0; //heart rate value
-int8_t validHeartRate = 0; //indicator to show if the heart rate calculation is valid
-/** HeartRate*/
-const int8_t RATE_SIZE = 4; //Increase this for more averaging. 4 is good.
-int8_t rates[RATE_SIZE] = {0}; //Array of heart rates
-int8_t rateSpot = 0;
+const uint8_t RATE_SIZE = 4;
+uint8_t rates[RATE_SIZE]; //Array of heart rates
+uint8_t rateSpot = 0;
 int64_t lastBeat = 0; //Time at which the last beat occurred
-/** Important values*/
-float beatsPerMinute = 0;
-int32_t beatAvg = 0;
+float beatsPerMinute;
+int32_t beatAvg;
+int64_t samplesTaken = 0; //Counter for calculating the Hz or read rate
+int64_t unblockedValue; //Average IR at power up
+int64_t startTime; //Used to calculate measurement rate
+int32_t perCent; 
+int32_t degOffset = 0.5; //calibrated Farenheit degrees
+int32_t irOffset = 1800;
+int32_t count;
+int32_t noFinger;
+//auto calibrate
+int32_t avgIr;
+int32_t avgTemp;
+
 //=======================================================================
 //                               Prototype
 //=======================================================================
@@ -109,110 +114,43 @@ void funct_HeartBeat (void);
 
 */
 void task_LM75_id (void);
-/*
 
-*/
-void task_RTC_id (void);
-
-//=======================================================================
-//                               Callback
-//=======================================================================
-void callback(char* topic, byte* payload, unsigned int length)
-{
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
-}
 //=======================================================================
 //                               Setup
 //=======================================================================
 
 void setup() {
-  // put your setup code here, to run once:
-  // initialize with the I2C addr 0x3C
-  Serial.begin(115200);
-
-  /*
-     Ubidots SetUp
-  */
-  /** Set the broker ID*/
-  client.ubidotsSetBroker("things.ubidots.com");
-  /** Enable debug options*/
-  client.setDebug(true);
   /** Enable the baudrate*/
   Serial.begin(115200);
-  /** Set a connection to the server*/
-  client.wifiConnection(WIFINAME, WIFIPASS);
-  /** Callback for debug options*/
-  client.begin(callback);
   /*
      Max30105 SetUp
   */
+  /** Local variables*/
+  /**Setup to sense up to 18 inches, max LED brightness*/
+  uint8_t ledBrightness = 25; //Options: 0=Off to 255=50mA=0xFF hexadecimal. 100=0x64; 50=0x32 25=0x19
+  uint8_t sampleAverage = 4; //Options: 1, 2, 4, 8, 16, 32
+  uint8_t ledMode = 2; //Options: 1 = Red only, 2 = Red + IR, 3 = Red + IR + Green
+  int32_t sampleRate = 400; //Options: 50, 100, 200, 400, 800, 1000, 1600, 3200
+  int32_t pulseWidth = 411; //Options: 69, 118, 215, 411
+  int32_t adcRange = 2048; //Options: 2048, 4096, 8192, 16384
   /** Init sensor MAX30105*/
-  particleSensor.begin(Wire, I2C_SPEED_FAST);
-  particleSensor.setup();
-  particleSensor.setPulseAmplitudeRed(0x0A);
+  if (!particleSensor.begin(Wire, I2C_SPEED_FAST)) //Use default I2C port, 400kHz speed
+  {
+    Serial.println("MAX30105 was not found. Please check wiring/power. ");
+    while (1);
+  }
+  Serial.println("Place your index finger on the sensor with steady pressure.");
+  particleSensor.setup(0); //Configure sensor. Turn off LEDs
+  particleSensor.enableDIETEMPRDY(); //Enable the temp ready interrupt. This is required.
+  particleSensor.setup(ledBrightness, sampleAverage, ledMode, sampleRate, pulseWidth, adcRange); //Configure sensor with these settings
+  particleSensor.setPulseAmplitudeRed(0x0A); //Turn Red LED to low to indicate sensor is running
+  particleSensor.setPulseAmplitudeGreen(0); //Turn off Green LED
+  particleSensor.enableDIETEMPRDY(); //Enable the temp ready interrupt. This is required.
   /*
      LM75 SetUp
   */
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  uint32_t currentTime = millis(); //ms
-
-  /*
-     Ubidots run
-  */
-  /** If connection is lost, then reconnect*/
-  if (!client.connected())
-  {
-    client.reconnect();
-  }
-
-  /*
-     Run task in a certain time
-  */
-  if (currentTime - previous_time_Max30105 >= EVENT_TIME_Max30105)
-  {
-    task_Max30105_id();
-
-    previous_time_Max30105 = currentTime;
-  }
-  /*
-     Run task in a certain time
-  */
-  if (currentTime - previous_time_LM75 >= EVENT_TIME_LM75)
-  {
-    task_LM75_id();
-    temperature_var = termo.getTemp();
-    Serial.print(temperature_var);
-    Serial.println(" oC");
-    previous_time_LM75 = currentTime;
-  }
-  /*
-     Run task in a certain time
-  */
-  if (currentTime - previous_time_TIME >= EVENT_TIME)
-  {
-    task_RTC_id();
-
-    previous_time_TIME = currentTime;
-  }
-
-  /*
-     Run task to publish info report
-  */
-  if (TRUE == publish_flag)
-  {
-    client.add("oxymeter", oxymeter_var);
-    client.add("temperature", temperature_var);
-    /** API LABEL*/
-    client.ubidotsPublish("iot_hospital");
-    client.loop();
-  }
+  task_Max30105_id();
 }
