@@ -4,6 +4,9 @@ void task_DS18B20_id ()
   sensors.requestTemperatures();
   /** */
   temperature_var = sensors.getTempC(insideThermometer);
-  Serial.print("Temp C: ");
-  Serial.print(temperature_var);
+   if(temperature_var == DEVICE_DISCONNECTED_C) 
+  {
+    Serial.println("Error: Could not read temperature data");
+    return;
+  }
 }

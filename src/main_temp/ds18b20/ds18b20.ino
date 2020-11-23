@@ -20,7 +20,7 @@ DeviceAddress insideThermometer;
 void setup(void)
 {
   // start serial port
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.println("Dallas Temperature IC Control Library Demo");
 
   // locate devices on the bus

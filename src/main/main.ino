@@ -116,7 +116,7 @@ void task_Max30105_id (void);
 /*
 
 */
-void task_DB18S20_id (void);
+void task_DS18B20_id (void);
 /*
 
 */
@@ -156,10 +156,41 @@ void setup() {
   /*
      DS18B20 SetUp
   */
+  Serial.print("Locating devices...");
   /** Search for a device via the one wire i2c*/
   sensors.begin();
+  Serial.print("Found ");
+  /** Count how many devices are*/
+  Serial.print(sensors.getDeviceCount(), DEC);
+  Serial.println(" devices.");
+  /** Check sensor power mode*/
+  Serial.print("Parasite power is: "); 
+  if (sensors.isParasitePowerMode())
+  {
+    Serial.println("ON");
+  }
+  else
+  {
+    Serial.println("OFF");
+  }
+  /** */
+  if (!sensors.getAddress(insideThermometer, 0))
+  {
+    Serial.println("Unable to find address for Device 0"); 
+  }
+  /** Print device addr*/
+  Serial.print("Device 0 Address: ");
+    for (uint8_t i = 0; i < 8; i++)
+  {
+    if (insideThermometer[i] < 16) Serial.print("0");
+    Serial.print(insideThermometer[i], HEX);
+  }
+  Serial.println();
   /** Set resolution to 9 bits*/
   sensors.setResolution(insideThermometer, 9);
+  Serial.print("Device 0 Resolution: ");
+  Serial.print(sensors.getResolution(insideThermometer), DEC); 
+  Serial.println();
   /*
      Ubidots
   */
@@ -190,11 +221,17 @@ void loop() {
     previous_time_Max30105 = currentTime;
   }
   /** Read sensor values*/
-  if (currentTime - previous_time_DS18B20 >= EVENT_TIME_DS18B20)
+  if (currentTime - previous_time_DB18S20 >= EVENT_TIME_DB18S20)
   {
+    /** */
+    sensors.requestTemperatures();
+    /** */
+    temperature_var = sensors.getTempC(insideThermometer);
+    Serial.print("Temp C: ");
+    Serial.print(temperature_var);
     task_DS18B20_id();
 
-    previous_time_DS18B20 = currentTime;
+    previous_time_DB18S20 = currentTime;
   }
   /** Publish sensor values*/
   if (currentTime - previous_time_PUBLISH >= EVENT_TIME_PUBLISH)
