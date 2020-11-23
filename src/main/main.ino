@@ -223,12 +223,6 @@ void loop() {
   /** Read sensor values*/
   if (currentTime - previous_time_DB18S20 >= EVENT_TIME_DB18S20)
   {
-    /** */
-    sensors.requestTemperatures();
-    /** */
-    temperature_var = sensors.getTempC(insideThermometer);
-    Serial.print("Temp C: ");
-    Serial.print(temperature_var);
     task_DS18B20_id();
 
     previous_time_DB18S20 = currentTime;
