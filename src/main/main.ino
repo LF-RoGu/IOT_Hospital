@@ -39,14 +39,17 @@ const uint8_t GPIO_S3   = 10;
 //                               Definitions
 //=======================================================================
 #define EVENT_TIME_Max30105 100
-#define EVENT_TIME_PUBLISH 500
+#define EVENT_TIME_DB18S20 150
+#define EVENT_TIME_PUBLISH 60*(1000)
 
 #define TRUE 1
 #define FALSE 0
-
-#define TOKEN "BBFF-YXileBcbucSl944RMPB6MJwddlGdrL"     // Your Ubidots TOKEN
-#define WIFINAME "role"   // Your SSID
-#define WIFIPASS "role1966"  // Your Wifi Pass
+/** Your Ubidots TOKEN*/
+#define TOKEN "BBFF-YXileBcbucSl944RMPB6MJwddlGdrL"  
+/** Your SSID*/
+#define WIFINAME "role"  
+/** Your Wifi Pass*/
+#define WIFIPASS "role1966" 
 //=======================================================================
 //                               Objects
 //=======================================================================
@@ -65,11 +68,12 @@ DeviceAddress insideThermometer;
 //                               Variables
 //=======================================================================
 uint32_t previous_time_Max30105 = 0;
+uint32_t previous_time_DB18S20 = 0;
 uint32_t previous_time_PUBLISH = 0;
 
 /** Sensors Variables*/
-uint16_t oxymeter_var = 0;
-uint16_t temperature_var = 0;
+uint32_t oxymeter_var = 0;
+float temperature_var = 0;
 
 /** MAX30105 variables*/
 const uint8_t RATE_SIZE = 4;
@@ -81,7 +85,6 @@ int32_t beatAvg;
 int64_t samplesTaken = 0; //Counter for calculating the Hz or read rate
 int64_t unblockedValue; //Average IR at power up
 int64_t startTime; //Used to calculate measurement rate
-int32_t spo2; 
 int32_t degOffset = 0.5; //calibrated Farenheit degrees
 int32_t irOffset = 1800;
 int32_t count;
@@ -110,6 +113,10 @@ void callback(char* topic, byte* payload, unsigned int length)
 
 */
 void task_Max30105_id (void);
+/*
+
+*/
+void task_DB18S20_id (void);
 /*
 
 */
@@ -147,8 +154,12 @@ void setup() {
   particleSensor.setPulseAmplitudeGreen(0); //Turn off Green LED
   particleSensor.enableDIETEMPRDY(); //Enable the temp ready interrupt. This is required.
   /*
-     LM75 SetUp
+     DS18B20 SetUp
   */
+  /** Search for a device via the one wire i2c*/
+  sensors.begin();
+  /** Set resolution to 9 bits*/
+  sensors.setResolution(insideThermometer, 9);
   /*
      Ubidots
   */
@@ -177,6 +188,13 @@ void loop() {
     task_Max30105_id();
 
     previous_time_Max30105 = currentTime;
+  }
+  /** Read sensor values*/
+  if (currentTime - previous_time_DS18B20 >= EVENT_TIME_DS18B20)
+  {
+    task_DS18B20_id();
+
+    previous_time_DS18B20 = currentTime;
   }
   /** Publish sensor values*/
   if (currentTime - previous_time_PUBLISH >= EVENT_TIME_PUBLISH)

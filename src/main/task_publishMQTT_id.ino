@@ -1,6 +1,7 @@
 void task_publishMQTT_id ()
 {
-  client.add("SPO2", spo2);  // Insert your variable Labels and the value to be sent
+  client.add("SPO2", oxymeter_var);  
+  client.add("Temperature", temperature_var);  
   client.ubidotsPublish("iot_hospital");
   client.loop();
 }
