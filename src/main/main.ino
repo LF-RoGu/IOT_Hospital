@@ -40,12 +40,12 @@ const uint8_t GPIO_S3   = 10;
 //=======================================================================
 #define EVENT_TIME_Max30105 100
 #define EVENT_TIME_DB18S20 150
-#define EVENT_TIME_PUBLISH 60*(1000)
+#define EVENT_TIME_PUBLISH 20*(1000)
 
 #define TRUE 1
 #define FALSE 0
 /** Your Ubidots TOKEN*/
-#define TOKEN "BBFF-YXileBcbucSl944RMPB6MJwddlGdrL"  
+#define TOKEN "BBFF-hEres6ioWSFaQmLD2oM3B2Trq2s1mx"  
 /** Your SSID*/
 #define WIFINAME "role"  
 /** Your Wifi Pass*/
